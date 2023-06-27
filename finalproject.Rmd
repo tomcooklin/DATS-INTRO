@@ -1,0 +1,387 @@
+---
+title: Study of Relationships and Optimal Values of Different Variables to Maximize
+  Productivity in Soccer
+output:
+  html_document: default
+  word_document: default
+---
+
+## Introduction
+
+During my study, I will be looking at at different variables such as age, possession and corner kicks in the English Premier League 2018/19 season to see which variables increase or decrease productivity (goals, wins, clean sheets) and whether there is a particular value to optimize productivity. My idea is to create a set of data and values which will present to teams targets and expectations. For example, recruiting younger players to get the optimal average team age for scoring goals. These variables include a mix of team based information and game based statistics. First I will look at game based statistics including possession, corners and scoring the first goal and see how they relate to different forms of productivity. It is important to look at different types of productivity such as goals scored and clean sheets because performance is dependent on each. Despite points per game being a strong indicator of performance, there are still various ways a team can improve whilst being a strong team. For example, a team could be winning games 4-3,5-3 etc so their main focus should be to improve their defense and we can analyze these using variables aside from points per game.
+
+### Importing data
+
+```{r}
+rm(list = ls())
+
+library(tidyverse)
+library(estimatr)
+library(ggrepel)
+
+matches = read_csv("/Users/tomcooklin/Desktop/GWU/Academics/Semester 5/DATS 1001/Final Project/england-premier-league-matches-2018-to-2019-stats.csv")
+
+players = read_csv("/Users/tomcooklin/Desktop/GWU/Academics/Semester 5/DATS 1001/Final Project/england-premier-league-players-2018-to-2019-stats.csv")
+
+teams = read_csv("/Users/tomcooklin/Desktop/GWU/Academics/Semester 5/DATS 1001/Final Project/england-premier-league-teams-2018-to-2019-stats.csv")
+
+teams2 = read_csv("/Users/tomcooklin/Desktop/GWU/Academics/Semester 5/DATS 1001/Final Project/england-premier-league-teams2-2018-to-2019-stats.csv")
+```
+
+# Game Statistics
+
+### Analyzing relationship of possession and goals scored conditioned on if team is playing at home or away
+
+The importance of possession style is highly discussed in football in regards to scoring goals. The new modern era is highly possession orientated. There is strong social expectation that possession leads to domination of games and goals. Despite this, some very successful team (such as Liverpool) have succeeded despite playing counter attacking football and won titles over possession based teams. Similarly, Arsenal under Arsene Wenger during his last couple years were a possession orientated team and dominated possession in the majority of their games. Despite this, they never contended for titles and were repetitively seen as failures. I wanted to test this social expectation of the modern era soccer and see if possession really is necessary to win games. Additionally, I wanted to condition it whether the team were playing home or away because travelling to an opponents stadium is deemed harder and often linked with different styles of play, often more defensive. Since possession is defined as one team retaining control of the ball, and the objective of the soccer is to score when in possession of the ball, I have decided to look at the relationship between possession and goals scored.
+
+```{r}
+goals_possession = c(matches$home_team_goal_count, matches$away_team_goal_count, matches$home_team_possession, matches$away_team_possession)
+
+goals_possession = matches %>% group_by(home_team_possession) %>% summarise(avg_home_goals = mean(home_team_goal_count))
+
+goals_possession2 = matches %>% group_by(away_team_possession) %>% summarise(avg_away_goals = mean(away_team_goal_count))
+
+plot <- ggplot() +
+      geom_point(data=goals_possession, aes(x= home_team_possession, y= avg_home_goals), color = 'blue') + 
+      geom_smooth(data=goals_possession, aes(x= home_team_possession, y= avg_home_goals), fill="blue",
+        colour="darkblue", se = F, size=1) +
+      geom_point(data=goals_possession2, aes(x=away_team_possession, y=avg_away_goals), color = 'red') + 
+      geom_smooth(data=goals_possession2, aes(x=away_team_possession, y=avg_away_goals), fill="red",
+        colour="red", se = F, size=1) +
+      labs(x = "Possession", y = "Average Goals Scored")
+
+plot
+
+dif_goal = matches$home_team_goal_count - matches$away_team_goal_count
+
+mean(dif_goal, na.rm = T)
+```
+
+In the above graph, blue represents home teams and red represents away teams. Home teams tend to score more goals across possession. This can also been seen as the home team outscores the away team on average by 0.3157895 goals. Additionally, the highest average goals per game for both home and away teams were recorded between 70% - 79%. Since there were higher values of possession recorded, this may suggest that this an optimal possession value to strive. Furthermore, this suggests the opponents having the ball in certain situations may provide beneficial to your team by making them more relaxed and providing strategic advantages, for example they become more spread out and prone to counter attacks. Overall, teams should play more possession based football to retain the ball and score more goals.
+
+```{r}
+reg_poss = tidy(lm_robust(avg_home_goals ~ home_team_possession, data = goals_possession))
+
+reg_poss
+
+reg_poss2 = tidy(lm_robust(avg_away_goals ~ away_team_possession, data = goals_possession2))
+
+reg_poss2
+```
+
+Calculating a linear regression yields similar results. Since the estimate for away_team_possession is higher than the estimate for home_team_possession, we can say that possession plays a more significant factor in scoring goals for away teams than home teams.
+
+### Is there a particular number of corners which increases your chances of winning?
+
+Corners are seen as good occasion for physical defenses to flood the opponents penalty box, attack the ball and score. Set pieces including corners are commonly described as game winning or game losing areas. Some teams specialize in corners and set pieces, scoring the majority of their goals from these. I plan to determine whether there is a relationship between corners and points per game. Since corners a by-product of an unsuccessful attack, we can determine from this information whether quality or quantity of attack is more important.
+
+```{r}
+corners = teams %>%
+  ggplot(aes(x = corners_total/matches_played, y = points_per_game)) +
+  geom_point() +
+  labs(x = "Average number of corners per game", y = "Average points per game") +
+  geom_smooth(se = F) +
+  geom_text_repel(aes(label = team_name), size = 2) +
+  theme_bw()
+
+corners
+```
+
+There is no optimal desired value for number of corners to maximize your chances of winning. Rather, an increase in number of corners increases your chances of winning. This comes as a consequence of attacking and applying pressure to the opponents defense, as corners are usually resulted from a failed attempted to score. There are teams such as Burnley which record few corners but have a higher average points per game. This may be because they are largely defensive team which receive few corner but scored high proportion of these corners due to their physical nature. Teams should attack with every possession instead of retaining the ball, risk losing it, whilst looking for high quality chances. 
+
+### The effects of scoring the first goal on win, losing or drawing
+
+```{r}
+scored_first = teams %>%
+  ggplot(aes(x = first_team_to_score_percentage, y = points_per_game)) +
+  geom_point() +
+  labs(x = "Percentage of Times Team Scored First", y = "Average Points per Game") +
+  geom_text_repel(aes(label = team_name), size = 2) +
+  geom_smooth(se = F) +
+  theme_bw()
+
+scored_first
+
+matches = matches %>%
+  mutate(
+    scored_first_home = gsub(",.+","", home_team_goal_timings),
+    scored_first_home = gsub("'.+","", scored_first_home),
+    scored_first_away = gsub(",.+","", away_team_goal_timings),
+    scored_first_away = gsub("'.+","", scored_first_away)
+  )
+
+matches = matches %>%
+  mutate(
+    who_scored_first = ifelse(scored_first_home < scored_first_away, 'Home team scored first', 'Away team scored first'),
+    home_points = ifelse(home_team_goal_count > away_team_goal_count, 3, ifelse(home_team_goal_count == away_team_goal_count, 1, 0)),
+    away_points = ifelse(home_team_goal_count < away_team_goal_count, 3, ifelse(home_team_goal_count == away_team_goal_count, 1, 0))
+  )
+
+lm_robust(home_points ~ who_scored_first, data = matches)
+
+lm_robust(away_points ~ who_scored_first, data = matches)
+```
+
+Scoring the first goal increases a home team average points received from the game by 0.8374369 and the away teams average points received from the game by -0.8349116. Therefore, it is critical to score the first goal. Since the change in home team average points received from the game is slightly higer than away teams average points received from the game, we can say the risk to be offensive and aggressive at the start of games to try and score the first whilst leaving yourself more exposed to conceding is worth the risk.
+
+# Team Statistics
+
+I have decided to invest more analysis in team statistics because these are things the coach staff have complete control over. The coaching staff can not easily implement a high possession based style of play consistently but they can change the average age of their roster by recruiting and transferring players.
+
+### Is there an optimal average team age to increase goals scored and decreased goals conceded?
+
+The balance between youth and experience is subject heavily discussed. Younger players are seen as more energetic, direct and attacking minded whilst older players with more experience are seen as consistent, physically slower and defensively minded. I plan to determine whether there is optimal average roster age which finds the correct balance between youth and experience. I decided to look at the relationship between goals scored and conceded because young squads are associated commonly today which scoring more and conceding more and vice versa for older rosters.
+
+```{r}
+avg_team_age = players %>% group_by(`Current Club`) %>% summarise(avg_age = mean(age))
+
+mins_goal = teams2[c(1,8)]
+
+avg_team_age = rename(avg_team_age, "team_name" = "Current Club")
+
+mins_goal = mins_goal %>%
+  mutate(
+    team_name = gsub(" FC","", team_name)
+  )
+
+avg_age_goals = left_join(avg_team_age, mins_goal)
+
+avg_age_goals_plot = avg_age_goals %>%
+  ggplot(aes(x = avg_age, y = minutes_per_goal_scored_overall)) +
+  geom_point() +
+  labs(x = "Average age of team", y = "Minutes per goal scored") +
+  geom_text_repel(aes(label = team_name), size = 2) +
+  geom_smooth(se = F) +
+  theme_bw()
+
+avg_age_goals_plot
+
+cor(avg_age_goals$minutes_per_goal_scored_overall, avg_age_goals$avg_age)
+
+```
+
+As you can see from the plot there is no significant relationship between average team age and minutes per goal scored. This is further supported because the correlation coefficient (-0.08859976) indicates a weak relationship between the two variables. The plot does suggest that teams with average of 28 tend to score more goals than other teams.
+
+```{r}
+avg_age_goals = avg_age_goals %>%
+  mutate(
+    over28 = ifelse(avg_age > 28, 'Over 28', 'Under 28')
+  )
+  
+over28_goals = avg_age_goals %>% group_by(over28) %>% summarise(avg_minutes_per_goals_scored = mean(minutes_per_goal_scored_overall))
+
+over28_goals_plot = over28_goals %>%
+  ggplot(aes(x = over28, y = avg_minutes_per_goals_scored)) +
+  geom_bar(stat = 'identity') +
+  scale_y_continuous(breaks = seq(60, 80, 5)) + 
+        coord_cartesian(ylim = c(60, 80)) +
+  labs(x = "Average team age", y = "Average minutes per goal scored") +
+  theme_bw()
+
+over28_goals_plot
+
+summary(over28_goals$avg_minutes_per_goals_scored)
+```
+
+There was an 7.98 increase in average minutes per goal scored from teams with an average age of over 28 to teams with an average team under 28. This suggest than for teams who want to score more goals and have an old average team age, they should consider trying to sign younger player below age of 28  to decrease their average team age. 
+
+```{r}
+mins_concede = teams2[c(1,11)]
+
+mins_concede = mins_concede %>%
+  mutate(
+    team_name = gsub(" FC","", team_name)
+  )
+
+avg_age_concede = left_join(avg_team_age, mins_concede)
+
+concede_scatter = avg_age_concede %>%
+  ggplot(aes(x = avg_age, y = minutes_per_goal_conceded_overall)) +
+  geom_point() +
+  labs(x = "Average age of team", y = "Minutes per goal conceded") +
+  geom_text_repel(aes(label = team_name), size = 2) +
+  geom_smooth(se = F) +
+  theme_bw()
+  
+concede_scatter
+
+```
+
+The regression model suggests that best defensive teams have an average age around 27.75. The data is heavily influenced by the outliers of Liverpool and Man City which also needs to be taken into account.
+
+```{r}
+avg_age_concede = avg_age_concede %>%
+  mutate(
+    over28 = ifelse(avg_age > 28, 'Over 28', 'Under 28')
+  )
+
+over28_concede = avg_age_concede %>% group_by(over28) %>% summarise(avg_minutes_per_goals_conceded = mean(minutes_per_goal_conceded_overall))
+
+over28_concede_plot = over28_concede %>%
+  ggplot(aes(x = over28, y = avg_minutes_per_goals_conceded)) +
+  geom_bar(stat = 'identity') +
+  scale_y_continuous(breaks = seq(60, 80, 5)) + 
+        coord_cartesian(ylim = c(60, 80)) +
+  labs(x = "Average team age", y = "Average minutes per goal conceded") +
+  theme_bw()
+
+over28_concede_plot
+```
+
+In contrast, the the difference between average minute per goals conceded between teams of average age of over and under 28 is only 0.17167. This further supports the claim to reduce average team ages below 28 since it provides benefits to increasing the number of goals you score whilst not decreasing your average number of goals conceded.
+
+```{r}
+lm_robust(minutes_per_goal_conceded_overall ~ avg_age, data = avg_age_concede)
+```
+
+A balance is required to maintain good ratio of goals scored to goals conceded. As seen, for every increase in average age of a team the minutes per goal conceded decreases by -1.776421. This means that as teams get older, they tend to get scored on fewer times. The supports the common ideology that older players are more experienced and concede less goals. Additionally, this suggests there is optimal average team age where (probably just below 28) where the the ratio between goals scored to goals conceded is maximized. 
+
+```{r}
+avg_age_both = left_join(avg_age_concede, avg_age_goals)
+
+avg_age_both = avg_age_both %>%
+  mutate(
+    avg_time_per_either = minutes_per_goal_conceded_overall - minutes_per_goal_scored_overall
+  )
+
+avg_age_both_plot2 = avg_age_both %>%
+  ggplot(aes(x = avg_age, y = avg_time_per_either)) +
+  geom_point(stat = 'identity') +
+  scale_y_continuous(breaks = seq(-120, 120, 20)) + 
+  ylim(-120,120) +
+  scale_x_continuous(breaks = seq(26.5, 30, 0.5)) + 
+        coord_cartesian(xlim = c(26.5, 30)) +
+  labs(x = "Average Team Age", y = "Time per goal scored minus time per goal conceded") + 
+  geom_text_repel(aes(label = team_name), size = 2) +
+  geom_smooth(se = F) +
+  theme_bw()
+
+avg_age_both_plot2
+
+lm_robust(avg_time_per_either ~ avg_age, avg_age_both)
+```
+
+In the graph above, negative numbers mean that teams concede goals more often than they score. Therefore, we are looking for the largest y values which maximize the margin between goals scored and goals conceded to find the optimal balance for average team age. Using a regression model, the optimal average team age is around 27.75 years old. Teams should look create their squad based around this age to find the correct balance between youth and experience.
+
+### Optimal age for offense and defense
+
+I decided to analyze the relationship between offensive average age and total goals scored since goals are the output of offensive work. An attackers main and foremost target is to score goals thus the most important indicator of attacking productivity is goals. In contrast for defensive average age, I decided to analyze its relationship with clean sheets which is defined as a game without conceding a goal. The number of clean sheets is historically critical for championship contending teams and there is a common saying "goals win games, clean sheets win championships".
+
+```{r}
+
+offense_age = players %>% group_by(`Current Club`) %>% filter(position == "Forward") %>% summarise(offense_avg_age = mean(age))
+
+defense_age = players %>% group_by(`Current Club`) %>% filter(position == "Defender") %>% summarise(defence_avg_age = mean(age))
+
+position_age = right_join(offense_age, defense_age)
+
+position_age = position_age %>%
+  mutate(dif_pos_age =  offense_avg_age - defence_avg_age)
+
+mean(position_age$dif_pos_age)
+
+```
+
+On average, the offense of the a team is 0.7084361 years younger than the defense of a team. This suggests that older more experienced players are recruited mainly for defensive purposes whilst younger energetic players are used offensively.
+
+```{r}
+
+position_age = rename(position_age, "common_name" = `Current Club`)
+
+team_age = right_join(teams[c(2,25,43)], position_age)
+
+team_age$offense_avg_age = round(team_age$offense_avg_age, digits = 4)
+
+attack_scatter = team_age %>%
+  ggplot(aes(x = offense_avg_age, y = goals_scored)) +
+  geom_point() +
+  scale_y_continuous(breaks = seq(20, 100, 10)) + 
+  ylim(20, 100) +
+  scale_x_continuous(breaks = seq(22, 32, 1)) + 
+        coord_cartesian(xlim = c(22, 32)) +
+  labs(x = "Average Offense Age", y = "Total Goal Count") + 
+  geom_text_repel(aes(label = common_name), size = 2) +
+  geom_smooth(se = F) +
+  theme_bw()
+
+attack_scatter
+
+```
+
+The regression models suggests that best average age of offense is around 27.25. It is important to note that the assumption that younger attacks tend to score more goals is not correct. There is a optimal value and decreasing the average age further tends to lead to less goals scored.
+
+```{r}
+defense_scatter = team_age %>%
+  ggplot(aes(x = defence_avg_age, y = clean_sheets)) +
+  geom_point() +
+  scale_y_continuous(breaks = seq(5, 21, 1)) + 
+  ylim(5, 21) +
+  scale_x_continuous(breaks = seq(26, 32, 1)) + 
+        coord_cartesian(xlim = c(26, 32)) +
+  labs(x = "Average Defense Age", y = "Total Clean Sheet Count") + 
+  geom_text_repel(aes(label = common_name), size = 2) +
+  geom_smooth(se = F) +
+  theme_bw()
+
+defense_scatter
+
+```
+
+The regression models indicates the optimal age for defense is 28.5. Squads should include younger players around the age of 27 to increase their goal output. Conversely, the defense should younger around the age of 28.5 to increase the number clean sheets throughout a season.
+
+# Other Statistics
+
+### Analyzing trend between months and average goals scored
+
+```{r}
+matches = matches %>%
+  mutate(
+    date = gsub("-.+","", date_GMT)
+  )
+
+matches$date = as.Date(matches$date, "%b %d %Y")
+
+matches = matches %>%
+  mutate(
+    month = format(date, "%b")
+  )
+
+matches$total_goals_scored = matches$home_team_goal_count + matches$away_team_goal_count
+
+goals_scored_month = matches %>% group_by(month) %>% summarise(mean_totalgoals = mean(total_goals_scored))
+
+goals_scored_month = goals_scored_month %>%
+  mutate(
+    month = factor(month, c("Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May"))
+  )
+
+month_vs_goals = goals_scored_month %>%
+  ggplot(aes(x = month, y = mean_totalgoals, group = 1)) +
+  geom_line(stat = 'identity') +
+  labs(x = "Month", y = "Average total goals scored per game") +
+  theme_bw()
+
+month_vs_goals
+
+summary(goals_scored_month$mean_totalgoals)
+```
+
+There is not a huge amount of variation in data since the range is only 0.437. Despite this, there is a large increase towards the end of the season which could be due to teams urgency to win games to gain places, avoid relegation and win the title. Note: The English Premier League season starts in August and ends in May. Teams can use this data to adapt their style of play. For example, during December a team might decide to play more defensive since teams tend to score more goals.
+
+# Summary
+
+In conclusion, teams should:
+
+  * Play possession based soccer
+  * Play attacking soccer from the start of the game with intent to score rather than not concede
+  * Build a roster of an average age around 27.75 to get the correct balance of experience and youth
+  * Include younger players in their offensive roster. Attempt to build an average offensive roster age of 27.
+  * Include older players in the defensive roster. Attempt to build an average defensive roster age of 28.5
+  * Consider corners are a by product of failed attacks but are shown to increase average goals. 
+  * Note scoring the first goal at home is critically important since it increases home team average points from game by 0.8374369
+  * Adapt game style depending on period of season. May play more defensive during middle of season.
+  
+It is important to note that the data analysis I have completed is just one piece of a huge puzzle. Quantifying such a dynamic sport to create a generic guideline to teams proves to be incredibly difficult. Numerous additional analysis needs to be completed across different variables to fill in the gaps and create the bigger picture. Additionally, it is also important to consider that the data used is collected from a singular season, and with soccer continually adapting and changing this analysis is likely to differ in the future. Also, with different cultures and countries, styles of soccer change. Therefore the data analysis may not be applicable across different contexts and leagues.
+  
+ 
+
